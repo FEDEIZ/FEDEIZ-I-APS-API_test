@@ -1,42 +1,40 @@
-from app.adapters.database import Database
-from app.adapters.repository import Repository
-from app.adapters.arxiv_api import ArxivApi
-from app.use_cases import (
-    ListPapersUseCase,
-    GetPaperUseCase,
-    ListAuthorsUseCase,
-    GetAuthorUseCase,
-    ListCategoriesUseCase,
-    GetCategoryUseCase,
-)
-from app.adapters.api import app
+
+from api.src.infrastructure.controllers.paper.fastApi import FastApiPaperController
+from api.src.infrastructure.controllers.paper.controller import PaperController
+from api.src.app.use_cases.py.paper.use_cases import PaperUseCases
+from api.src.infrastructure.postgressRepo.paper.repository.postgres import PaperRepositoryPostgres
+from api.src.infrastructure.database.postgres.db import PostgresDatabase
 
 
 def main():
-    # Instantiate components
-    database = Database()
-    repository = Repository(database)
-    arxiv_api = ArxivApi()
+    db = PostgresDatabase() # instantiate the database class here
+    db.connect() # connect to the database
 
-    # Instantiate use cases
-    list_papers_use_case = ListPapersUseCase(repository, arxiv_api)
-    get_paper_use_case = GetPaperUseCase(repository, arxiv_api)
-    list_authors_use_case = ListAuthorsUseCase(repository)
-    get_author_use_case = GetAuthorUseCase(repository)
-    list_categories_use_case = ListCategoriesUseCase(repository)
-    get_category_use_case = GetCategoryUseCase(repository)
+    paper_repository = PaperRepositoryPostgres(db) # instantiate the repository with the database instance
 
-    # Register endpoints
-    app.register_list_papers_endpoint(list_papers_use_case)
-    app.register_get_paper_endpoint(get_paper_use_case)
-    app.register_list_authors_endpoint(list_authors_use_case)
-    app.register_get_author_endpoint(get_author_use_case)
-    app.register_list_categories_endpoint(list_categories_use_case)
-    app.register_get_category_endpoint(get_category_use_case)
+    paper_use_cases = PaperUseCases(paper_repository)
+    
 
-    # Start the web server
-    app.run()
+    # instantiate the controllers
+    paper_controller = PaperController(paper_use_cases)
+    fastapi_paper_controller = FastApiPaperController(paper_controller)
 
+    # api framework used
+    app = FastAPI() # instantiate the FastAPI app here
 
-if __name__ == "__main__":
+    #routes for api
+    
+    @app.get("/papers")
+    async def get_all_papers():
+        return await fastapi_paper_controller.get_all_papers()
+
+    @app.get("/papers/{paper_id}")
+    async def get_paper_by_id(paper_id: int):
+        return await fastapi_paper_controller.get_paper_by_id(paper_id)
+
+    
+
+    db.disconnect() # disconnect from the database
+
+if __name__ == '__main__':
     main()
